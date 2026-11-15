@@ -1,0 +1,17 @@
+services:
+  bridge:
+    build:
+      context: ..
+    image: xa401-bridge-rust:local
+    network_mode: host
+    user: "${BRIDGE_UID:-1000}:${BRIDGE_GID:-1000}"
+    restart: unless-stopped
+    stop_grace_period: 95s
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    volumes:
+      - ${PRIVATE_DIR:?Set PRIVATE_DIR}:/private:ro
+      - ${STATE_DIR:?Set STATE_DIR}:/data/state
+      - ${RECORDINGS_DIR:?Set RECORDINGS_DIR}:/data/recordings
+      - ${FFMPEG_DIR:?Set FFMPEG_DIR}:/media-tools:ro

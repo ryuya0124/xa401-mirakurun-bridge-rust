@@ -1,0 +1,297 @@
+diff --git a/client/src/components/Videos/RecordedProgram.vue b/client/src/components/Videos/RecordedProgram.vue
+index 6c87ee5..753e822 100644
+--- a/client/src/components/Videos/RecordedProgram.vue
++++ b/client/src/components/Videos/RecordedProgram.vue
+@@ -62,6 +62,9 @@
+                             :src="`${Utils.api_base_url}/channels/${program.channel.id}/logo`">
+                         <span class="recorded-program__content-meta-broadcaster-name">Ch: {{program.channel.channel_number}} {{program.channel.name}}</span>
+                     </div>
++                    <div class="recorded-program__content-meta-broadcaster" v-else-if="program.external_playback">
++                        <span class="recorded-program__content-meta-broadcaster-name">{{program.external_playback.provider}} から直接再生</span>
++                    </div>
+                     <div class="recorded-program__content-meta-broadcaster" v-else>
+                         <span class="recorded-program__content-meta-broadcaster-name">チャンネル情報なし</span>
+                     </div>
+@@ -139,7 +142,7 @@
+                         </div>
+                     </template>
+                     <v-list density="compact" bg-color="background-lighten-1" class="recorded-program__menu-list">
+-                        <v-list-item @click="showOfflineDownload = true" :disabled="program.recorded_video.status === 'Recording'">
++                        <v-list-item @click="showOfflineDownload = true" :disabled="program.recorded_video.status === 'Recording' || program.external_playback !== undefined">
+                             <template v-slot:prepend>
+                                 <Icon icon="fluent:cloud-arrow-down-20-regular" width="20px" height="20px" />
+                             </template>
+@@ -159,26 +162,26 @@
+                             </template>
+                             <v-list-item-title class="ml-3">録画ファイル情報を表示</v-list-item-title>
+                         </v-list-item>
+-                        <v-list-item @click="downloadVideo" :disabled="program.recorded_video.status === 'Recording'">
++                        <v-list-item @click="downloadVideo" :disabled="program.recorded_video.status === 'Recording' || program.external_playback !== undefined">
+                             <template v-slot:prepend>
+                                 <Icon icon="fluent:arrow-download-24-regular" width="20px" height="20px" />
+                             </template>
+                             <v-list-item-title class="ml-3">録画ファイル本体をダウンロード ({{ Utils.formatBytes(program.recorded_video.file_size) }})</v-list-item-title>
+                         </v-list-item>
+-                        <v-list-item @click="reanalyzeVideo" v-ftooltip="'再生時に必要な録画ファイル情報・番組情報・サムネイルなどをすべて再解析・再生成します（数分かかります）'">
++                        <v-list-item @click="reanalyzeVideo" :disabled="program.external_playback?.read_only" v-ftooltip="'再生時に必要な録画ファイル情報・番組情報・サムネイルなどをすべて再解析・再生成します（数分かかります）'">
+                             <template v-slot:prepend>
+                                 <Icon icon="fluent:book-arrow-clockwise-20-regular" width="20px" height="20px" />
+                             </template>
+                             <v-list-item-title class="ml-3">メタデータを再解析</v-list-item-title>
+                         </v-list-item>
+-                        <v-list-item @click="regenerateThumbnail()" v-ftooltip="'サムネイルのみを再生成します（数分かかります） 変更はページを再読み込みすると反映されます'">
++                        <v-list-item @click="regenerateThumbnail()" :disabled="program.external_playback?.read_only" v-ftooltip="'サムネイルのみを再生成します（数分かかります） 変更はページを再読み込みすると反映されます'">
+                             <template v-slot:prepend>
+                                 <Icon icon="fluent:image-arrow-counterclockwise-24-regular" width="20px" height="20px" />
+                             </template>
+                             <v-list-item-title class="ml-3">サムネイルを再生成</v-list-item-title>
+                         </v-list-item>
+                         <v-divider></v-divider>
+-                        <v-list-item @click="showDeleteConfirmation" :disabled="program.recorded_video.status === 'Recording'" class="recorded-program__menu-list-item--danger">
++                        <v-list-item @click="showDeleteConfirmation" :disabled="program.recorded_video.status === 'Recording' || program.external_playback?.read_only" class="recorded-program__menu-list-item--danger">
+                             <template v-slot:prepend>
+                                 <Icon icon="fluent:delete-20-regular" width="20px" height="20px" />
+                             </template>
+diff --git a/client/src/services/Videos.ts b/client/src/services/Videos.ts
+index 162bd33..a921874 100644
+--- a/client/src/services/Videos.ts
++++ b/client/src/services/Videos.ts
+@@ -22,15 +22,15 @@ export interface IRecordedVideo {
+     recording_end_time: string | null;
+     duration: number;
+     container_format: 'MPEG-TS' | 'MPEG-4';
+-    video_codec: 'MPEG-2' | 'H.264' | 'H.265';
+-    video_codec_profile: 'High' | 'High 10' | 'Main' | 'Main 10' | 'Baseline' | 'Constrained Baseline';
+-    video_scan_type: 'Interlaced' | 'Progressive';
++    video_codec: 'MPEG-2' | 'H.264' | 'H.265' | '未取得';
++    video_codec_profile: 'High' | 'High 10' | 'Main' | 'Main 10' | 'Baseline' | 'Constrained Baseline' | '未取得';
++    video_scan_type: 'Interlaced' | 'Progressive' | '未取得';
+     video_frame_rate: number;
+     video_resolution_width: number;
+     video_resolution_height: number;
+     has_video_stream_changes: boolean;
+-    primary_audio_codec: 'AAC-LC' | 'HE-AAC';
+-    primary_audio_channel: 'Monaural' | 'Stereo' | '5.1ch';
++    primary_audio_codec: 'AAC-LC' | 'HE-AAC' | '未取得';
++    primary_audio_channel: 'Monaural' | 'Stereo' | '5.1ch' | '未取得';
+     primary_audio_sampling_rate: number;
+     secondary_audio_codec: 'AAC-LC' | 'HE-AAC' | null;
+     secondary_audio_channel: 'Monaural' | 'Stereo' | '5.1ch' | null;
+@@ -103,6 +103,15 @@ export const IRecordedVideoDefault: IRecordedVideo = {
+ 
+ /** 録画番組情報を表すインターフェース */
+ export interface IRecordedProgram {
++    /** Optional read-only recording provider; the receiver runs independently. */
++    external_playback?: {
++        module_url: string;
++        stream_url: string;
++        duration: number;
++        provider: string;
++        read_only: boolean;
++        original_available: boolean;
++    };
+     id: number;
+     recorded_video: IRecordedVideo;
+     recording_start_margin: number;
+@@ -123,7 +132,7 @@ export interface IRecordedProgram {
+     start_time: string;
+     end_time: string;
+     duration: number;
+-    is_free: boolean;
++    is_free: boolean | null;
+     genres: { major: string; middle: string; }[];
+     primary_audio_type: string;
+     primary_audio_language: string;
+diff --git a/client/src/services/player/PlayerController.ts b/client/src/services/player/PlayerController.ts
+index 188b8a8..e1cde26 100644
+--- a/client/src/services/player/PlayerController.ts
++++ b/client/src/services/player/PlayerController.ts
+@@ -355,7 +355,22 @@ class PlayerController {
+         // DPlayer が mpegts.js / hls.js / mpeg2toh264 を検出できるように、実行時ライブラリを window 直下へ公開する
+         (window as any).mpegts = mpegts;
+         (window as any).Hls = Hls;
+-        Object.assign(window, {mpeg2toh264: {Mpeg2TsPlayer, Deinterlacer}});
++        // An optional external provider adapts time-addressed network recordings.
++        // The standard DPlayer, video element, timeline and MediaSession stay in use.
++        const external_playback = this.playback_mode === 'Video' ? player_store.recorded_program.external_playback : undefined;
++        let source_player_class = Mpeg2TsPlayer;
++        if (external_playback !== undefined) {
++            if (external_playback.original_available !== true) {
++                throw new Error('この外部録画のオリジナル形式はまだ再生に対応していません。');
++            }
++            const module_url = new URL(external_playback.module_url, location.origin);
++            if (module_url.origin !== location.origin || module_url.pathname.endsWith('.mjs') === false) {
++                throw new Error('Invalid external recording player module.');
++            }
++            const provider = await import(/* @vite-ignore */ module_url.href);
++            source_player_class = provider.createPlayerClass(Mpeg2TsPlayer, external_playback);
++        }
++        Object.assign(window, {mpeg2toh264: {Mpeg2TsPlayer: source_player_class, Deinterlacer}});
+ 
+         // DPlayer を初期化
+         this.player = new DPlayer({
+@@ -501,18 +516,20 @@ class PlayerController {
+                     const is_original_quality_available = (
+                         recorded_video.status != 'Recording' &&
+                         recorded_video.container_format === 'MPEG-TS' &&
+-                        recorded_video.video_codec === 'MPEG-2'
++                        (recorded_video.video_codec === 'MPEG-2' || external_playback?.original_available === true)
+                     );
+                     if (is_original_quality_available === true) {
+                         // オリジナル画質は常に画質リストの先頭に追加する
+                         qualities.push({
+-                            name: 'Original (MPEG-2)',
++                            name: external_playback !== undefined ? `Original (${external_playback.provider})` : 'Original (MPEG-2)',
+                             type: 'mpeg2toh264',
+                             url: `${Utils.api_base_url}/videos/${player_store.recorded_program.id}/download`,
+                         });
+                     }
+                     // 画質リストを作成
+                     for (const quality_name of VIDEO_STREAMING_QUALITIES) {
++                        // The external receiver exposes its stored quality only.
++                        if (external_playback !== undefined) continue;
+                         // 画質ごとに異なるセッション ID を生成 (セッション ID は UUID の - で区切って一番左側のみを使う)
+                         const session_id = crypto.randomUUID().split('-')[0];
+                         // 画質設定を追加
+@@ -549,6 +566,7 @@ class PlayerController {
+                         }
+                     }
+ 
++                    if (external_playback !== undefined) default_quality = qualities[0].name;
+                     const tile_info = player_store.recorded_program.recorded_video.thumbnail_info?.tile ?? null;
+                     return {
+                         quality: qualities,
+@@ -1550,6 +1568,7 @@ class PlayerController {
+                     // 重複実行を回避する
+                     if (this.player === null) return;
+                     if (on_canplay_called === true) return;
++                    const startupVideo = this.player.video;
+                     this.player.video.oncanplay = null;
+                     this.player.video.oncanplaythrough = null;
+                     on_canplay_called = true;
+@@ -1563,10 +1582,16 @@ class PlayerController {
+                     // 再生バッファが live_playback_buffer_seconds を切ると再生が途切れやすくなるので (特に動きの激しい映像)、
+                     // 再生開始までの時間を若干犠牲にして、再生バッファの調整と同期に時間を割く
+                     // live_playback_buffer_seconds の値は mpegts.js の liveSyncTargetLatency 設定に渡す値と共通
+-                    const live_playback_buffer_seconds = this.live_playback_buffer_seconds;  // 毎回取得すると負荷が掛かるのでキャッシュする
++                    // MPEG-2 Original は変換後の最初のフラグメントから再生できるため、
++                    // 初回だけ低遅延相当で開始する。通常の遅延同期設定や保存済み設定は変更しない。
++                    const live_playback_buffer_seconds = this.player.type === 'mpeg2toh264' ?
++                        Math.min(this.live_playback_buffer_seconds, Utils.isSafari() ? 1.2 : 0.9) :
++                        this.live_playback_buffer_seconds;
+                     let current_playback_buffer_sec = this.getPlaybackBufferSeconds();
+                     while (current_playback_buffer_sec < live_playback_buffer_seconds) {
+                         await Utils.sleep(0.1);
++                        // チャンネル切替・破棄後の古い準備処理で、新しい再生を停止・解除しない。
++                        if (this.player?.video !== startupVideo) return;
+                         current_playback_buffer_sec = this.getPlaybackBufferSeconds();
+                     }
+ 
+diff --git a/client/src/views/Reservations/Home.vue b/client/src/views/Reservations/Home.vue
+index d30c759..889204b 100644
+--- a/client/src/views/Reservations/Home.vue
++++ b/client/src/views/Reservations/Home.vue
+@@ -10,6 +10,7 @@
+                         { name: 'ホーム', path: '/' },
+                         { name: '録画予約', path: '/reservations/', disabled: true },
+                     ]" />
++                    <XA401RecordingManagement />
+                     <!-- 放送が近い録画予約セクション -->
+                     <ReservationList
+                         class="reservations-home-container__upcoming-reservations"
+@@ -24,7 +25,7 @@
+                         :showEmptyMessage="!isLoading"
+                         :emptyIcon="'fluent:timer-20-regular'"
+                         :emptyMessage="'まだ録画予約がありません。'"
+-                        :emptySubMessage="'番組表から録画予約を追加できます。'"
++                        :emptySubMessage="'「PC録画を管理」から録画予約を追加できます。'"
+                         @more="$router.push('/reservations/all')"
+                         @delete="handleReservationDeleted" />
+                     <!-- 予約数ランキングセクション -->
+@@ -47,6 +48,7 @@ import HeaderBar from '@/components/HeaderBar.vue';
+ import Navigation from '@/components/Navigation.vue';
+ import ReservationList from '@/components/Reservations/ReservationList.vue';
+ import ToruRanking from '@/components/Reservations/ToruRanking.vue';
++import XA401RecordingManagement from '@/components/Reservations/XA401RecordingManagement.vue';
+ import SPHeaderBar from '@/components/SPHeaderBar.vue';
+ import Reservations, { IReservation } from '@/services/Reservations';
+ import { dayjs } from '@/utils';
+diff --git a/client/src/views/Reservations/Reservations.vue b/client/src/views/Reservations/Reservations.vue
+index 3d18804..6bf7d3d 100644
+--- a/client/src/views/Reservations/Reservations.vue
++++ b/client/src/views/Reservations/Reservations.vue
+@@ -11,6 +11,7 @@
+                         { name: '録画予約', path: '/reservations/' },
+                         { name: '録画予約一覧', path: '/reservations/all', disabled: true },
+                     ]" />
++                    <XA401RecordingManagement />
+                     <ReservationList ref="reservationList"
+                         title="録画予約一覧"
+                         :reservations="reservations"
+@@ -38,6 +39,7 @@ import Breadcrumbs from '@/components/Breadcrumbs.vue';
+ import HeaderBar from '@/components/HeaderBar.vue';
+ import Navigation from '@/components/Navigation.vue';
+ import ReservationList from '@/components/Reservations/ReservationList.vue';
++import XA401RecordingManagement from '@/components/Reservations/XA401RecordingManagement.vue';
+ import SPHeaderBar from '@/components/SPHeaderBar.vue';
+ import Reservations, { IReservation } from '@/services/Reservations';
+ import useToruCountStore, { ProgramSortOrder } from '@/stores/ToruCountStore';
+@@ -198,4 +200,4 @@ onUnmounted(() => {
+     }
+ }
+ 
+-</style>
+\ No newline at end of file
++</style>
+diff --git a/client/src/components/Reservations/XA401RecordingManagement.vue b/client/src/components/Reservations/XA401RecordingManagement.vue
+new file mode 100644
+--- /dev/null
++++ b/client/src/components/Reservations/XA401RecordingManagement.vue
+@@ -0,0 +1,47 @@
++<template>
++    <v-card class="xa401-recording-management" color="background-lighten-1" rounded="lg" variant="flat">
++        <div class="xa401-recording-management__description">
++            <h2>PCへの録画と予約</h2>
++            <p>PCに保存する番組の予約と録画状況を管理します。</p>
++        </div>
++        <v-btn class="xa401-recording-management__button" color="secondary" rounded="lg"
++            href="/api/xa401/recordings" variant="flat">
++            <Icon icon="fluent:record-20-filled" width="20px" class="mr-2" />
++            PC録画を管理
++        </v-btn>
++    </v-card>
++</template>
++<style lang="scss" scoped>
++.xa401-recording-management {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    flex-wrap: wrap;
++    gap: 16px;
++    padding: 20px;
++    margin-bottom: 24px;
++
++    &__description {
++        min-width: 0;
++        h2 {
++            font-size: 18px;
++            font-weight: bold;
++            line-height: 1.6;
++        }
++        p {
++            margin-top: 4px;
++            font-size: 14px;
++            color: rgb(var(--v-theme-text-darken-1));
++        }
++    }
++    &__button {
++        flex-shrink: 0;
++    }
++    @include smartphone-vertical {
++        align-items: stretch;
++        flex-direction: column;
++        padding: 16px;
++        margin-bottom: 16px;
++    }
++}
++</style>
