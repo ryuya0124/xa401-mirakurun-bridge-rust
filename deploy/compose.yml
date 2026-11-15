@@ -8,10 +8,15 @@ services:
     restart: unless-stopped
     stop_grace_period: 95s
     read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     tmpfs:
       - /tmp:size=16m,mode=1777
     volumes:
-      - ${PRIVATE_DIR:?Set PRIVATE_DIR}:/private:ro
+      - ${PRIVATE_DIR:?Set PRIVATE_DIR}/bridge.json:/private/bridge.json:ro
+      - ${PRIVATE_DIR:?Set PRIVATE_DIR}/credentials.env:/private/credentials.env:ro
       - ${STATE_DIR:?Set STATE_DIR}:/data/state
       - ${RECORDINGS_DIR:?Set RECORDINGS_DIR}:/data/recordings
       - ${FFMPEG_DIR:?Set FFMPEG_DIR}:/media-tools:ro
