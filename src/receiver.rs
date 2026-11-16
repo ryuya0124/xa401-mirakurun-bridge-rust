@@ -36,10 +36,16 @@ impl Normalizer {
             ensure!(self.stride != 0, "Decrypted data is not aligned MPEG-TS");
         }
         let count = self.buffer.len() / self.stride;
-        let mut out = BytesMut::with_capacity(count * 188);
         for i in 0..count {
             let start = i * self.stride + self.offset;
             ensure!(self.buffer[start] == 0x47, "MPEG-TS sync lost");
+        }
+        if self.stride == 188 {
+            return Ok(self.buffer.split_to(count * 188).freeze());
+        }
+        let mut out = BytesMut::with_capacity(count * 188);
+        for i in 0..count {
+            let start = i * self.stride + self.offset;
             out.extend_from_slice(&self.buffer[start..start + 188]);
         }
         self.buffer.advance(count * self.stride);
@@ -202,5 +208,28 @@ mod tests {
     #[test]
     fn corrupt_plaintext_rejected() {
         assert!(Normalizer::new().feed(&[0; 192 * 6]).is_err());
+    }
+    #[test]
+    fn payload_and_held_chunks_survive_normalization() {
+        for stride in [188, 192] {
+            let mut input = vec![0; stride * 19];
+            let mut expected = vec![];
+            for (i, packet) in input.chunks_mut(stride).enumerate() {
+                let ts = &mut packet[stride - 188..];
+                ts.fill(i as u8);
+                ts[0] = 0x47;
+                expected.extend_from_slice(ts);
+            }
+            let mut n = Normalizer::new();
+            // Retain each Bytes while subsequent feeds reuse the mutable buffer.
+            let chunks = input
+                .chunks(1301)
+                .map(|s| n.feed(s).unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(chunks.concat(), expected);
+            let mut bad = vec![0; stride];
+            bad[stride - 188] = 0x46;
+            assert!(n.feed(&bad).is_err());
+        }
     }
 }

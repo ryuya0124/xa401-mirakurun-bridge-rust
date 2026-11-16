@@ -8,6 +8,7 @@ use axum::{
     routing::{get, post},
 };
 use serde_json::{Value, json};
+use std::borrow::Cow;
 #[derive(rust_embed::RustEmbed)]
 #[folder = "assets/web/"]
 struct Assets;
@@ -36,7 +37,10 @@ fn file(path: &str) -> Response {
                     ("Cache-Control", "no-cache"),
                     ("X-Content-Type-Options", "nosniff"),
                 ],
-                file.data.into_owned(),
+                match file.data {
+                    Cow::Borrowed(data) => bytes::Bytes::from_static(data),
+                    Cow::Owned(data) => bytes::Bytes::from(data),
+                },
             )
                 .into_response()
         }

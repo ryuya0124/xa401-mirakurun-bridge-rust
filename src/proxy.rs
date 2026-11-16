@@ -10,14 +10,22 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use futures_util::{SinkExt, StreamExt};
-use std::time::Duration;
+use std::{sync::OnceLock, time::Duration};
 pub fn client() -> Result<reqwest::Client> {
-    Ok(reqwest::Client::builder()
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    if let Some(client) = CLIENT.get() {
+        return Ok(client.clone());
+    }
+    let client = reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(Duration::from_secs(5))
         .read_timeout(Duration::from_secs(40))
-        .build()?)
+        .pool_idle_timeout(Duration::from_secs(30))
+        .pool_max_idle_per_host(4)
+        .build()?;
+    let _ = CLIENT.set(client);
+    Ok(CLIENT.get().expect("Client just initialized").clone())
 }
 pub async fn frontend(request: Request, next: axum::middleware::Next) -> Response {
     let path = request.uri().path();

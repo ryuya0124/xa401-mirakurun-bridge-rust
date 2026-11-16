@@ -31,6 +31,8 @@ LinuxのDocker構成は[deploy/compose.yml](deploy/compose.yml)です。PRIVATE_
 docker compose -f deploy/compose.yml up -d --build
 ```
 
+配布イメージにはRust実行ファイルとDebianの実行環境だけを含め、コンパイラー・ビルドキャッシュ・Python Bridgeは含めません。Dockerビルド時にRustの検査を実行します。188バイトTSの正規化はバッファーを共有し、同梱Webファイルの配信も静的データを共有します。文字列変換の一文字ごとの割当を減らし、固定KonomiTV転送先のHTTP接続プールは上限付きで再利用します。認証・品質設定・受信枠数は維持しています。これらの変更によるCPU・メモリーの改善率は未測定です。
+
 既存KonomiTVの録画UI拡張は[互換パッチ](deploy/konomitv-external-recordings.patch)で再現できます。KonomiTVは独自の配布・管理手順に従ってください。
 
 録画保存先は`recording.directory`、空き容量の下限は`recording.min_free_bytes`、1ファイルの上限は`recording.max_file_bytes`です。ffprobe/ffmpegへの明示したパスが必要です。録画は再圧縮せず、末尾の不完全PESを取り除いた後、映像・音声の実デコードに通ったものだけを`.ts`として公開します。失敗したデータは`.part`等で保持し、完成扱いにしません。

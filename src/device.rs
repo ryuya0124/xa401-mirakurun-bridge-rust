@@ -80,21 +80,22 @@ fn field(n: Node<'_, '_>, name: &str) -> String {
         .children()
         .find(|c| c.has_tag_name(name))
         .and_then(|c| c.text())
-        .unwrap_or("")
-        .to_string();
-    static MAP: std::sync::OnceLock<std::collections::HashMap<String, String>> =
+        .unwrap_or("");
+    static MAP: std::sync::OnceLock<std::collections::HashMap<char, String>> =
         std::sync::OnceLock::new();
     let map = MAP.get_or_init(|| {
         serde_json::from_str(include_str!("../templates/arib-pua.json"))
             .expect("Embedded public ARIB map")
     });
-    text.chars()
-        .map(|c| {
-            map.get(&c.to_string())
-                .cloned()
-                .unwrap_or_else(|| c.to_string())
-        })
-        .collect()
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        if let Some(value) = map.get(&c) {
+            out.push_str(value);
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 fn escape(s: &str) -> String {
     s.replace('&', "&amp;")
@@ -423,6 +424,19 @@ impl Device {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn catalogue_text_preserves_unicode_and_converts_every_public_symbol() {
+        let map: std::collections::HashMap<String, String> =
+            serde_json::from_str(include_str!("../templates/arib-pua.json")).unwrap();
+        for (encoded, decoded) in map {
+            let data = format!("<item><title>日本語&amp;{encoded}🙂\u{e000}</title></item>");
+            let doc = xml(&data).unwrap();
+            assert_eq!(
+                field(doc.root_element(), "title"),
+                format!("日本語&{decoded}🙂\u{e000}")
+            );
+        }
+    }
     #[test]
     fn endpoint_boundary() {
         let host = Some(Ipv4Addr::new(192, 168, 3, 5));
