@@ -22,8 +22,8 @@ jobs:
           }
           "PERL=$perlPath" >> $env:GITHUB_ENV
       - name: Install pinned Rust toolchain
-        run: rustup toolchain install 1.99.0 --profile minimal --component rustfmt
-      - run: cargo +1.99.0 fmt --check
-      - run: cargo +1.99.0 test --locked
-      - run: cargo +1.99.0 build --release --locked
+        run: rustup toolchain install 1.100.0 --profile minimal --component rustfmt
+      - run: cargo +1.100.0 fmt --check
+      - run: cargo +1.100.0 test --locked
+      - run: cargo +1.100.0 build --release --locked
       - run: node --test tests/test_*.mjs

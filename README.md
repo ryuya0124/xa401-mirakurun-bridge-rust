@@ -4,6 +4,8 @@
 
 Rust単独でSSDP、機器UDN・model照合、ContentDirectory、原画質resource選択、Full AKE、証明書・SRM検証、RTT応答、PCP復号、188/192バイトTS正規化、同局共有受信、SIT番組情報、PC録画・予約・管理画面、XA401録画の直接再生・時間シーク、KonomiTVの録画・予約API連携を実装しています。Moveや資格情報発行は実装していません。資格情報は明示した外部ファイルから読みます。
 
+ビルド・CI・DockerはRust 1.100.0を使用します。ローカル環境は`rust-toolchain.toml`で同じバージョンを選択します。
+
 ```sh
 cargo build --release --locked
 target/release/xa401-bridge discover --source 192.168.1.10
