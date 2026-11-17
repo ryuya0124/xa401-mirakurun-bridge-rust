@@ -23,6 +23,23 @@ jobs:
           "PERL=$perlPath" >> $env:GITHUB_ENV
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.100.0 --profile minimal --component rustfmt
+      - name: Build pinned OpenSSL on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./scripts/build-openssl.ps1
+          "OPENSSL_DIR=$env:OPENSSL_DIR" >> $env:GITHUB_ENV
+          "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
+          "LC_ALL=C" >> $env:GITHUB_ENV
+          "LC_CTYPE=C" >> $env:GITHUB_ENV
+      - name: Build pinned OpenSSL on Unix
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          sh scripts/build-openssl.sh
+          . ./openssl-build.conf
+          echo "OPENSSL_DIR=$PWD/target/openssl-$OPENSSL_VERSION/install" >> "$GITHUB_ENV"
+          echo 'OPENSSL_STATIC=1' >> "$GITHUB_ENV"
       - run: cargo +1.100.0 fmt --check
       - run: cargo +1.100.0 test --locked
       - run: cargo +1.100.0 build --release --locked

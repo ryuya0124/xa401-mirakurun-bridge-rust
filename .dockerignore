@@ -1,6 +1,11 @@
 *
 !Cargo.toml
 !Cargo.lock
+!openssl-build.conf
+!scripts/
+!scripts/build-openssl.sh
+!licenses/
+!licenses/**
 !src/
 !src/**
 !templates/

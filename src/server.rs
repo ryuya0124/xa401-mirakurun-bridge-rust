@@ -701,8 +701,18 @@ async fn guide(State(a): State<Shared>) -> Json<Value> {
 async fn health(State(a): State<Shared>) -> Json<Value> {
     let streams=a.sessions.lock().await.values().filter_map(Weak::upgrade).map(|s|json!({"service_id":s.key,"ts_bytes":s.bytes.load(Ordering::Relaxed),"clients":s.tx.receiver_count(),"viewers":s.viewers.load(Ordering::Relaxed),"started_at":s.started})).collect::<Vec<_>>();
     Json(
-        json!({"status":"ok","engine":"rust","services":a.device.lock().await.items.len(),"streams":streams,"maximum_distinct_channels":a.config.max_streams,"cached_programs":a.programs().len(),"epg":"observed_SIT","epg_collection":a.collector_status.lock().unwrap_or_else(|e|e.into_inner()).clone()}),
+        json!({"status":"ok","engine":"rust","openssl":openssl::version::version(),"services":a.device.lock().await.items.len(),"streams":streams,"maximum_distinct_channels":a.config.max_streams,"cached_programs":a.programs().len(),"epg":"observed_SIT","epg_collection":a.collector_status.lock().unwrap_or_else(|e|e.into_inner()).clone()}),
     )
+}
+fn tuners_response(max_streams: usize, count: usize) -> Response {
+    (
+        [(
+            axum::http::header::SERVER,
+            concat!("xa401-mirakurun-bridge/", env!("CARGO_PKG_VERSION")),
+        )],
+        Json((0..max_streams).map(|i|json!({"index":i,"name":format!("XA401 receive slot {}",i+1),"types":["GR","BS","CS","CATV"],"isAvailable":true,"isFree":i>=count,"isRemote":false,"users":if i<count{vec![json!({"id":format!("xa401-native-{i}"),"priority":0})]}else{vec![]}})).collect::<Vec<_>>()),
+    )
+        .into_response()
 }
 pub async fn serve(config: Config) -> Result<()> {
     ensure!(
@@ -738,7 +748,7 @@ pub async fn serve(config: Config) -> Result<()> {
         .route("/health",get(health))
         .route("/api/services",get(|State(a):State<Shared>|async move{Json(a.device.lock().await.items.iter().filter_map(|i|i.service.clone()).collect::<Vec<_>>())}))
         .route("/api/programs",get(|State(a):State<Shared>|async move{Json(a.programs())}))
-        .route("/api/tuners",get(|State(a):State<Shared>|async move{let count=a.sessions.lock().await.values().filter(|s|s.strong_count()>0).count();Json((0..a.config.max_streams).map(|i|json!({"index":i,"name":format!("XA401 receive slot {}",i+1),"types":["GR","BS","CS","CATV"],"isAvailable":true,"isFree":i>=count,"isRemote":false,"users":if i<count{vec![json!({"id":format!("xa401-native-{i}"),"priority":0})]}else{vec![]}})).collect::<Vec<_>>())}))
+        .route("/api/tuners",get(|State(a):State<Shared>|async move{let count=a.sessions.lock().await.values().filter(|s|s.strong_count()>0).count();tuners_response(a.config.max_streams,count)}))
         .route("/api/version",get(||async{Json(json!({"current":env!("CARGO_PKG_VERSION"),"name":"xa401-mirakurun-bridge","engine":"rust","compatibleApi":"Mirakurun subset"}))}))
         .route("/api/services/{id}/stream",get(live).head(||async{StatusCode::METHOD_NOT_ALLOWED}))
         .route("/xa401/api/native/catalogue",get(catalogue))
@@ -777,4 +787,27 @@ pub async fn serve(config: Config) -> Result<()> {
         })
         .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn tuner_probe_satisfies_konomitv_startup_validation() {
+        let response = tuners_response(2, 1);
+        assert_eq!(response.status(), StatusCode::OK);
+        let server = response.headers()[axum::http::header::SERVER]
+            .to_str()
+            .unwrap();
+        assert_eq!(server.split('/').next(), Some("xa401-mirakurun-bridge"));
+        assert_eq!(server.split('/').nth(1), Some(env!("CARGO_PKG_VERSION")));
+        let bytes = axum::body::to_bytes(response.into_body(), 16384)
+            .await
+            .unwrap();
+        let tuners: Vec<Value> = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(tuners.len(), 2);
+        assert_eq!(tuners[0]["isFree"], false);
+        assert_eq!(tuners[1]["isFree"], true);
+    }
 }

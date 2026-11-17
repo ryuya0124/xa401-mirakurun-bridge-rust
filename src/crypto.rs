@@ -249,4 +249,12 @@ mod tests {
         assert!(point(&g, &[0; 40]).is_err());
         assert!(certificate(&[0; 88]).is_err());
     }
+    #[test]
+    fn linked_openssl_is_current() {
+        assert!(
+            openssl::version::number() >= 0x40100000,
+            "Build with the pinned OpenSSL 4.1 library: {}",
+            openssl::version::version()
+        );
+    }
 }

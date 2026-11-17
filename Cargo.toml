@@ -18,7 +18,7 @@ clap = { version = "4", features = ["derive"] }
 futures-util = "0.3"
 fs2 = "0.4"
 hex = "0.4"
-openssl = { version = "0.10.82", features = ["vendored"] }
+openssl = "0.10.82"
 reqwest = { version = "0.13.5", default-features = false, features = ["stream", "json"] }
 roxmltree = "0.21"
 rust-embed = { version = "8", features = ["debug-embed"] }

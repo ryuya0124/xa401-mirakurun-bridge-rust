@@ -6,8 +6,20 @@ Rust単独でSSDP、機器UDN・model照合、ContentDirectory、原画質resour
 
 ビルド・CI・DockerはRust 1.100.0を使用します。ローカル環境は`rust-toolchain.toml`で同じバージョンを選択します。
 
+OpenSSLは公式の4.1.0ソースをSHA-256照合してビルドし、静的にリンクします。Cargoの旧vendored版は使いません。Linux/macOSでは次の準備を行います。
+
+```sh
+sh scripts/build-openssl.sh
+. ./openssl-build.conf
+export OPENSSL_DIR="$PWD/target/openssl-$OPENSSL_VERSION/install"
+export OPENSSL_STATIC=1
+```
+
+WindowsではMSVCとStrawberry Perlを導入後、PowerShellで`./scripts/build-openssl.ps1`を実行すると同じシェルのビルド環境が設定されます。ソースをUTF-8としてコンパイルし、日本語コードページによるC4819も防ぎます。OpenSSL 4.1の標準MSVC設定はデバッグ情報をオブジェクトへ含めるため、旧版の`ossl_static.pdb`欠落によるLNK4099を回避できます。警告抑制やOpenSSLソースの独自パッチは使いません。
+
 ```sh
 cargo build --release --locked
+target/release/xa401-bridge version
 target/release/xa401-bridge discover --source 192.168.1.10
 target/release/xa401-bridge info --config /private/bridge.json
 target/release/xa401-bridge list --config /private/bridge.json --recorded
@@ -25,7 +37,7 @@ Mirakurun互換APIはloopback限定です。TLSはアクセス元ACL・Host/Orig
 
 KonomiTVのフロント全体も中継する場合だけ、信頼するプロキシから`X-XA401-Frontend: 1`と`X-Forwarded-Host`、`X-Forwarded-Proto`を付けます。元のOriginをプロキシで検査してから取り除いてください。この目印のないloopbackリクエストはMirakurun互換APIです。KonomiTVへの転送先は固定の`http://127.0.0.77:7010`です。
 
-Windows / macOSは各OS向けに`cargo build --release --locked`でビルドできます。WindowsではMSVCのC++ビルド環境とStrawberry Perl、macOSではXcode Command Line Toolsが必要です。OpenSSLはソースからビルドしてバイナリーへ組み込みます。HTML・JS・WASMも同梱するため、実行時のNode.jsも不要です。
+Windows / macOSは上記のOpenSSL準備後、各OS向けに`cargo build --release --locked`でビルドできます。WindowsではMSVCのC++ビルド環境とStrawberry Perl、macOSではXcode Command Line Toolsが必要です。OpenSSLはソースからビルドしてバイナリーへ組み込みます。HTML・JS・WASMも同梱するため、実行時のNode.jsも不要です。
 
 LinuxのDocker構成は[deploy/compose.yml](deploy/compose.yml)です。PRIVATE_DIR・STATE_DIR・RECORDINGS_DIR・FFMPEG_DIRにホスト上の専用フォルダーを指定し、コンテナー内の設定はcredentials=`/private/credentials.env`、state_dir=`/data/state`、recording.directory=`/data/recordings`、ffmpeg/ffprobe=`/media-tools/ffmpeg.elf` / `/media-tools/ffprobe.elf`へ合わせます。録画先は容量の大きい既存パーティションにしてください。
 

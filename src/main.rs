@@ -23,6 +23,7 @@ struct Args {
 }
 #[derive(Subcommand)]
 enum Command {
+    Version,
     Serve {
         #[arg(long)]
         config: PathBuf,
@@ -109,6 +110,10 @@ async fn main() {
 }
 async fn run() -> Result<()> {
     match Args::parse().command {
+        Command::Version => println!(
+            "{}",
+            serde_json::json!({"bridge":env!("CARGO_PKG_VERSION"),"openssl":openssl::version::version()})
+        ),
         Command::Serve { config: path } => server::serve(config(&path)?).await?,
         Command::Discover { source } => println!(
             "{}",

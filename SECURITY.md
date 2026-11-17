@@ -3,6 +3,7 @@
 このアプリの稼働バックエンドはRustです。Python版は元の別リポジトリに資料として保存し、呼び出しません。
 
 - Cargo.lockで依存を固定し、Full AKE・証明書署名・公開点/部分群・SRM・RTTを検証します。独自曲線の演算はOpenSSL 0.10.82の非推奨でないAPIを使います。Pythonのecdsaは実行時依存にありません。
+- Rustのopenssl crateは0.10.82、リンクする暗号ライブラリー本体はOpenSSL 4.1.0です。`openssl-build.conf`の公式ソースSHA-256をWindows・Unix・Dockerで照合します。`version`コマンドと`/health`で実際にリンクした版を確認できます。
 - HTTP APIはloopback限定。Host/Origin/Fetch Metadataを検査します。リモート接続は信頼するLAN/Tailnetを限定したTLSリバースプロキシで扱います。
 - 受信前にXA401のUDN/modelを再確認し、media URLとAKE hostを同じ検証済み機器に限定します。HTTPリダイレクト、XML DTD/外部実体、過大なXML/PCP、未知の暗号モードを拒否します。
 - 資格情報は外部ファイルから読み、ログや例外へ値を出しません。Rustの機密バイト配列はzeroizeを使い、ファイルは0600、privateディレクトリは0700を推奨します。
